@@ -21,6 +21,12 @@ app.use("/webhook", webhooksRoute);
 // Static files for frontend
 app.use(express.static("public"));
 
+// Endpoint to get Stripe publishable key
+app.get("/config", (req, res) => {
+  res.json({ publishableKey: process.env.STRIPE_PUBLISHABLE_KEY });
+});
+
+
 app.listen(process.env.PORT || 4242, () => 
   console.log("🚀 Server running on http://localhost:4242")
 );

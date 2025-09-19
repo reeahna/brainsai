@@ -1,10 +1,89 @@
-<script src="https://js.stripe.com/v3/"></script>
-<form id="payment-form">
-  <div id="payment-element"></div>
-  <button id="submit">Pay</button>
-  <div id="error-message"></div>
-</form>
-<script>
-  const stripe = Stripe("pk_test_12345");
-  // same frontend code we discussed earlier...
-</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Checkout</title>
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      max-width: 500px;
+    }
+    h2 {
+      margin-bottom: 1rem;
+    }
+    #payment-element {
+      margin-bottom: 1rem;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #635bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:disabled {
+      background-color: #bbb;
+    }
+    #error-message {
+      color: red;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h2>One-Time Payment</h2>
+  <form id="payment-form">
+    <div id="payment-element"><!-- Stripe will inject UI here --></div>
+    <button id="submit">Pay $19.99</button>
+    <div id="error-message"></div>
+  </form>
+
+  <script>
+    let stripe;
+
+    async function initialize() {
+      // 1. Get publishable key from backend
+      const configResponse = await fetch("/config");
+      const { publishableKey } = await configResponse.json();
+      stripe = Stripe(publishableKey);
+
+      // 2. Create PaymentIntent
+      const response = await fetch("/api/payments/create-payment-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: 1999, currency: "usd" }) // $19.99
+      });
+
+      const { clientSecret } = await response.json();
+
+      // 3. Mount Stripe Elements
+      const elements = stripe.elements({ clientSecret });
+      const paymentElement = elements.create("payment");
+      paymentElement.mount("#payment-element");
+
+      // 4. Handle form submission
+      const form = document.getElementById("payment-form");
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const { error } = await stripe.confirmPayment({
+          elements,
+          confirmParams: {
+            return_url: "http://localhost:4242/checkout-success.html",
+          },
+        });
+
+        if (error) {
+          document.getElementById("error-message").textContent = error.message;
+        }
+      });
+    }
+
+    initialize();
+  </script>
+</body>
+</html>

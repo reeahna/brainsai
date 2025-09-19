@@ -1,10 +1,92 @@
-<script src="https://js.stripe.com/v3/"></script>
-<form id="subscription-form">
-  <div id="payment-element"></div>
-  <button id="submit">Subscribe</button>
-  <div id="error-message"></div>
-</form>
-<script>
-  const stripe = Stripe("pk_test_12345");
-  // same subscription frontend code we discussed earlier...
-</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Subscribe</title>
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      max-width: 500px;
+    }
+    h2 {
+      margin-bottom: 1rem;
+    }
+    #payment-element {
+      margin-bottom: 1rem;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #635bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    #error-message {
+      color: red;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h2>Subscribe to Premium Plan</h2>
+  <form id="subscription-form">
+    <div id="payment-element"><!-- Stripe will inject UI here --></div>
+    <button id="submit">Start Subscription</button>
+    <div id="error-message"></div>
+  </form>
+
+  <script>
+    let stripe, elements;
+
+    async function initialize() {
+      // 1. Get publishable key
+      const configResponse = await fetch("/config");
+      const { publishableKey } = await configResponse.json();
+      stripe = Stripe(publishableKey);
+
+      // 2. Call backend to create subscription
+      // Replace with your real Price ID
+      const response = await fetch("/api/subscriptions/create-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: "customer@example.com",
+          paymentMethodId: null,  // not needed with Payment Element
+          priceId: "price_1S8mlq0x1rL4DM4CvyuoaS4x"   // 👈 replace with your real Price ID
+        }),
+      });
+
+      const { clientSecret } = await response.json();
+      console.log("Got client secret for subscription:", clientSecret);
+
+      // 3. Mount Payment Element
+      elements = stripe.elements({ clientSecret });
+      const paymentElement = elements.create("payment");
+      paymentElement.mount("#payment-element");
+
+      // 4. Handle form submission
+      const form = document.getElementById("subscription-form");
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const { error } = await stripe.confirmPayment({
+          elements,
+          confirmParams: {
+            return_url: "http://localhost:4242/subscription-success.html",
+          },
+        });
+
+        if (error) {
+          document.getElementById("error-message").textContent = error.message;
+        }
+      });
+    }
+
+    initialize();
+  </script>
+</body>
+</html>

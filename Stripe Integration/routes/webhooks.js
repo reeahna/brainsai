@@ -4,7 +4,7 @@ import bodyParser from "body-parser";
 
 const router = express.Router();
 
-// Raw body required for webhook signature verification
+// Webhook endpoint
 router.post(
   "/",
   bodyParser.raw({ type: "application/json" }),
@@ -16,29 +16,53 @@ router.post(
       event = stripe.webhooks.constructEvent(
         req.body,
         sig,
-        "whsec_12345" // Replace with your webhook secret
+        process.env.STRIPE_WEBHOOK_SECRET // ✅ use .env, not hardcoded
       );
     } catch (err) {
       console.error("⚠️ Webhook signature verification failed:", err.message);
       return res.sendStatus(400);
     }
 
+    // ✅ Handle events
     switch (event.type) {
-      case "payment_intent.succeeded":
-        console.log("✅ One-time payment succeeded");
+      case "payment_intent.succeeded": {
+        const paymentIntent = event.data.object;
+        console.log("✅ One-time payment succeeded:", paymentIntent.id);
+        // 👉 Update your order in DB as paid
         break;
+      }
 
-      case "invoice.payment_succeeded":
-        console.log("✅ Subscription payment succeeded");
-        break;
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object;
+        console.log("✅ Subscription payment succeeded:", invoice.id);
 
-      case "invoice.payment_failed":
-        console.log("❌ Subscription payment failed");
-        break;
+        // 👉 Example: Mark subscription active in your DB
+        // const subscriptionId = invoice.subscription;
+        // updateUserSubscription(subscriptionId, "active");
 
-      case "customer.subscription.deleted":
-        console.log("🛑 Subscription canceled");
         break;
+      }
+
+      case "invoice.payment_failed": {
+        const invoice = event.data.object;
+        console.log("❌ Subscription payment failed:", invoice.id);
+
+        // 👉 Example: Flag subscription in DB for retry or notify user
+        // const subscriptionId = invoice.subscription;
+        // updateUserSubscription(subscriptionId, "past_due");
+
+        break;
+      }
+
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object;
+        console.log("🛑 Subscription canceled:", subscription.id);
+
+        // 👉 Example: Mark subscription inactive in DB
+        // updateUserSubscription(subscription.id, "canceled");
+
+        break;
+      }
 
       default:
         console.log(`Unhandled event type: ${event.type}`);
